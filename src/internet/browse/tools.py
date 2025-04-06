@@ -72,11 +72,17 @@ async def get_website_url_content(url: str, ignore_links: bool = False, max_leng
 		print('Error in webscrape: ', e)
 		return {"error": f"Error fetching the url {url}: {str(e)}"}
 	
-	out = html_to_text(response.text, ignore_links=ignore_links)
-	if max_length:
-		return out[0:max_length]
-	else:
-		return out
+	
+	try:
+		out = html_to_text(response.text, ignore_links=ignore_links)
+		print("\n\nOut: ", out)
+		if max_length:
+			return out[0:max_length]
+		else:
+			return out
+	except Exception as e:
+		print('Error in html_to_text: ', e)
+		return response.text
 
 # Define the tool parameters
 get_website_url_content._tool_params = {
