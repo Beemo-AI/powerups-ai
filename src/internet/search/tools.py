@@ -32,8 +32,6 @@ def google_search(query: str, api_key: str = None, search_id: str = None):
 	google_api_key = api_key 
 	google_search_cx_id = search_id
 
-	print("GOOGLE API KEY: ", google_api_key)
-	print("GOOGLE SEARCH CX ID: ", google_search_cx_id)
 	
 	if not google_api_key or not google_search_cx_id:
 		return {"error": "Google API key and Search Engine ID must be provided"}

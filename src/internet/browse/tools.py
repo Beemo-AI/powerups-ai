@@ -5,19 +5,12 @@ assistant, the function is called and its results are returned.
 NOTE: tenant_name and other extra_args are passed to all the functions to prevent
 an unexpected keyword error from happening.
 """
-from db.weaviate.operations.general import query_by_vector
-from ai.embeddings import create_embedding
 from datetime import datetime
-from pydantic import BaseModel, HttpUrl, Field
 import traceback
 import httpx
 import html2text
-from googleapiclient.discovery import build
 import os
-
-google_constella_api_key = os.environ.get('GOOGLE_CONSTELLA_API_KEY')
-google_search_cx_id = 'c41e4d932d6f543f2'
-
+from utils.tool_decorator import tool
 
 def clean_results(results):
 	"""
@@ -34,15 +27,6 @@ def clean_results(results):
 		final_str += str(result) + '\n'
 	return final_str
 
-async def search_user_notes_similarity(query:str = '', similarity_setting:float = 0.5, tenant_name:str=None):
-	try:
-		query_vector = create_embedding(query)
-		results = query_by_vector(tenant_name, query_vector, similarity_setting=similarity_setting, include_vector=False)["results"]
-		return clean_results(results)
-	except Exception as e:
-		print('Error in search_user_notes_similarity: ', e)
-		traceback.print_exc()
-		return []
 
 def html_to_text(html,ignore_links=False,bypass_tables=False,ignore_images=True):
 	'''
@@ -63,14 +47,19 @@ def html_to_text(html,ignore_links=False,bypass_tables=False,ignore_images=True)
 	text.ignore_images = ignore_images
 	return text.handle(html,)
 
-async def get_website_url_content(url: HttpUrl, ignore_links: bool = False, max_length: int = None, tenant_name:str=None):
+@tool(
+    description="Fetch and extract text content from a webpage URL"
+)
+async def get_website_url_content(url: str, ignore_links: bool = False, max_length: int = None, tenant_name: str = None):
 	'''
 	This function is used to scrape a webpage.
 	It converts the html to text and returns the text.
 	
 	Args:
-		plain_json (dict): The JSON data containing the URL to scrape. It is meant to be called as a tool call from an assistant.
-		the json should be in the format of {"url": "https://www.example.com", "ignore_links": False, "max_length": 1000}
+		url (str): The URL to scrape.
+		ignore_links (bool): Ignore links in the text. Use 'False' to receive the URLs of nested pages to scrape.
+		max_length (int): Maximum length of text to return. If None, return all text.
+		tenant_name (str): Tenant name for tracking purposes.
 
 	Returns:
 		str: The text content of the webpage. If max_length is provided, the text will be truncated to the specified length.
@@ -81,11 +70,34 @@ async def get_website_url_content(url: HttpUrl, ignore_links: bool = False, max_
 			response = await client.get(str(url), headers=header, timeout=5)
 	except Exception as e:
 		print('Error in webscrape: ', e)
-		return "Error fetching the url "+str(url)
-	print('response: ', response.text)
-	out = html_to_text(response.text,ignore_links=ignore_links)
+		return {"error": f"Error fetching the url {url}: {str(e)}"}
+	
+	out = html_to_text(response.text, ignore_links=ignore_links)
 	if max_length:
 		return out[0:max_length]
 	else:
 		return out
+
+# Define the tool parameters
+get_website_url_content._tool_params = {
+	"type": "object",
+	"properties": {
+		"url": {
+			"type": "string",
+			"description": "The URL of the webpage to scrape"
+		},
+		"ignore_links": {
+			"type": "boolean",
+			"description": "Whether to ignore links in the text. Use 'false' to receive URLs of nested pages.",
+			"default": False
+		},
+		"max_length": {
+			"type": "integer",
+			"description": "Maximum length of text to return. If not provided, returns all text.",
+			"default": None
+		}
+	},
+	"required": ["url"],
+	"additionalProperties": False
+}
 
